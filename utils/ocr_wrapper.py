@@ -1,13 +1,19 @@
 # utils/ocr_wrapper.py
 
 import logging
-
-import easyocr
 import numpy as np
 from PIL import Image
 
-# Initialize once
-_easyocr_reader = easyocr.Reader(['en'])
+# Pillow>=10 removed the Image.ANTIALIAS constant which EasyOCR still
+# references internally. Provide a backwards-compatible alias so EasyOCR
+# works regardless of the installed Pillow version.
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
+
+import easyocr
+
+# Initialize once with GPU disabled by default for broader compatibility
+_easyocr_reader = easyocr.Reader(['en'], gpu=False)
 
 
 def read_text(image: Image.Image) -> dict:
