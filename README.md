@@ -61,6 +61,12 @@ Settings are stored in `configs.yaml`. Important options include:
 - `ocr_engine`: OCR backend to use (default `easyocr`)
 - `use_template_fallback`: enable template matching if OCR fails
 
+### Performance Logging
+
+Runtime metrics such as image extraction time, per-page OCR time, and overall
+batch duration are logged at the INFO level. Review the console output or log
+files to see where processing spends the most time.
+
 ## Development
 
 Run the automated tests with:
