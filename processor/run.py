@@ -18,7 +18,7 @@ from utils.ocr_wrapper import read_text
 os.environ["FLAGS_use_mkldnn"] = "0"
 
 
-def run_input(filepath, config):
+def run_input(filepath, config, progress_callback=None):
     path = Path(filepath)
 
     if ";" in str(filepath):
@@ -32,6 +32,8 @@ def run_input(filepath, config):
     ocr_text_log = []
     total = len(paths)
     logging.info(f"🗂️ Batch processing {total} file(s)...")
+    if progress_callback:
+        progress_callback(0, total)
 
     for idx, file in enumerate(paths, 1):
         out_dir, _, _ = get_dynamic_paths(file)
@@ -47,6 +49,9 @@ def run_input(filepath, config):
         except Exception as e:
             logging.error(f"❌ Failed: {file} → {e}")
             results.append((file.name, "failed"))
+        finally:
+            if progress_callback:
+                progress_callback(idx, total)
 
     if total > 1:
         ok = sum(1 for _, r in results if r == "ok")

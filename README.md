@@ -39,6 +39,9 @@ Ensure the Tesseract OCR engine and Poppler utilities are installed on your syst
 python -m main --file <PATH_TO_PDF_OR_FOLDER>
 ```
 
+Processing progress is displayed in the console so you can track the number of
+files completed.
+
 Use the `--compare` flag to benchmark different OCR engines on the provided file.
 
 ### GUI
@@ -49,7 +52,9 @@ Run the GUI launcher:
 python gui.py
 ```
 
-Select files or a folder to process and choose your desired options. Results and logs will be written into a `processed` directory next to the input files.
+Select files or a folder to process and choose your desired options. The GUI
+shows a progress bar that updates as each file finishes. Results and logs will
+be written into a `processed` directory next to the input files.
 
 ## Configuration
 
