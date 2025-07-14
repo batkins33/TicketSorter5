@@ -53,7 +53,6 @@ def run_input(filepath, config, progress_callback=None):
             logging.error(f"❌ Failed: {file} → {e}")
             results.append((file.name, "failed"))
         finally:
- finally:
             logging.info(
                 f"⏱️ {file.name} processed in {time.perf_counter() - file_start:.2f}s"
             )
@@ -178,7 +177,6 @@ def _run_single(filepath, config):
     logging.info(f"✅ Output written to: {out_dir}")
     logging.info(f"🕒 File processed in {time.perf_counter() - func_start:.2f}s")
     return ocr_logs
-
 
 
 def run_all_pdfs_in_dir(root_dir, config):

@@ -22,3 +22,5 @@ template_threshold: 0.85
 two_page_scan: false
 use_roi: false
 use_template_fallback: true
+use_process_pool: false
+num_workers: 4

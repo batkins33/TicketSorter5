@@ -6,7 +6,7 @@ import io
 import logging
 import re
 from collections import defaultdict, Counter
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -14,8 +14,12 @@ import pandas as pd
 from PIL import Image
 from processor.file_handler import export_grouped_output
 from processor.filename_utils import parse_input_filename, format_output_filename_camel
-from processor.image_ops import correct_image_orientation, apply_grayscale, extract_ticket_number, \
-    run_template_matching
+from processor.image_ops import (
+    correct_image_orientation,
+    apply_grayscale,
+    extract_ticket_number,
+    run_template_matching,
+)
 from rapidfuzz.fuzz import partial_ratio
 from utils.loader import load_ocr_configs_from_excel, load_templates
 from utils.ocr_wrapper import read_text
@@ -85,7 +89,9 @@ def process_single_page(args):
         comp, matched, kw, preview, ocr_score = ocr_cache[roi_hash]
         logging.info(f"🔁 OCR cache hit on page {i + 1}")
     else:
-        comp, matched, kw, preview, ocr_score = ocr_match_company(roi, ocr_config, config, log_row=row_log)
+        comp, matched, kw, preview, ocr_score = ocr_match_company(
+            roi, ocr_config, config, log_row=row_log
+        )
         ocr_cache[roi_hash] = (comp, matched, kw, preview, ocr_score)
 
     method = "OCR (ROI)"
@@ -98,8 +104,9 @@ def process_single_page(args):
         was_grayscaled = True
 
     if not matched:
-        full_comp, full_matched, full_kw, full_preview, full_score = ocr_match_company(page, ocr_config, config,
-                                                                                       log_row=row_log)
+        full_comp, full_matched, full_kw, full_preview, full_score = ocr_match_company(
+            page, ocr_config, config, log_row=row_log
+        )
         if full_matched:
             comp = full_comp
             matched = True
@@ -112,9 +119,16 @@ def process_single_page(args):
         try:
             roi_np = np.array(roi)
             if is_oversized_template(roi_np):
-                logging.warning(f"⚠️ Skipped oversized ROI template match on page {i + 1}")
+                logging.warning(
+                    f"⚠️ Skipped oversized ROI template match on page {i + 1}"
+                )
             else:
-                result = run_template_matching(roi_np, templates, config.get("template_threshold", 0.85), preview=False)
+                result = run_template_matching(
+                    roi_np,
+                    templates,
+                    config.get("template_threshold", 0.85),
+                    preview=False,
+                )
                 if result:
                     template_vendor, score = result
                     if score >= config.get("template_threshold", 0.85):
@@ -151,7 +165,9 @@ def ocr_match_company(pil_img, ocr_config, config, threshold=80, log_row=None):
     try:
         max_w = config.get("ocr_resize_max_width", 1200)
         if pil_img.width > max_w:
-            pil_img = pil_img.resize((max_w, int(pil_img.height * max_w / pil_img.width)))
+            pil_img = pil_img.resize(
+                (max_w, int(pil_img.height * max_w / pil_img.width))
+            )
 
         raw_result = read_text(pil_img)
         ocr_text = raw_result.get("text", "")
@@ -167,7 +183,10 @@ def ocr_match_company(pil_img, ocr_config, config, threshold=80, log_row=None):
         for company, data in companies:
             for kw in data.get("keywords", []):
                 kw_clean = re.sub(r"[^a-z0-9]+", "", kw.lower())
-                if kw_clean in config.get("exclude_keywords", []) and company.lower() != kw_clean:
+                if (
+                    kw_clean in config.get("exclude_keywords", [])
+                    and company.lower() != kw_clean
+                ):
                     continue
                 score = partial_ratio(kw_clean, ocr_text)
                 scored_matches.append((company, score, kw))
@@ -181,13 +200,20 @@ def ocr_match_company(pil_img, ocr_config, config, threshold=80, log_row=None):
         return max(top_matches, key=lambda x: x[1], default=("Unknown", 0, ""))
 
     for group_name in ["trucking", "materials"]:
-        group = [(c, d) for c, d in ocr_config.items() if d.get("vendor_type", "").lower() == group_name]
+        group = [
+            (c, d)
+            for c, d in ocr_config.items()
+            if d.get("vendor_type", "").lower() == group_name
+        ]
         comp, score, kw = best_match(group)
         if comp != "Unknown" and score >= threshold:
             return comp, True, kw, ocr_text[:300], score
 
-    others = [(c, d) for c, d in ocr_config.items() if
-              d.get("vendor_type", "").lower() not in ("trucking", "materials")]
+    others = [
+        (c, d)
+        for c, d in ocr_config.items()
+        if d.get("vendor_type", "").lower() not in ("trucking", "materials")
+    ]
     comp, score, kw = best_match(others)
     if comp != "Unknown" and score >= threshold:
         return comp, True, kw, ocr_text[:300], score
@@ -195,9 +221,15 @@ def ocr_match_company(pil_img, ocr_config, config, threshold=80, log_row=None):
     return "Unknown", False, "", ocr_text[:300], 0
 
 
-def process_pages(pages: list[Image.Image], filepath: str, config: dict, suffix: str = "") -> list[str]:
+def process_pages(
+    pages: list[Image.Image], filepath: str, config: dict, suffix: str = ""
+) -> list[str]:
     logging.info(f"🧠 Starting OCR processing for {len(pages)} pages...")
-    templates = load_templates(config["template_dir"]) if config.get("use_template_fallback", True) else {}
+    templates = (
+        load_templates(config["template_dir"])
+        if config.get("use_template_fallback", True)
+        else {}
+    )
     base_name = Path(filepath).stem.upper()
     file_metadata = parse_input_filename(filepath)
     ocr_config = load_ocr_configs_from_excel(config["keyword_file"])
@@ -225,33 +257,46 @@ def process_pages(pages: list[Image.Image], filepath: str, config: dict, suffix:
         for i, page in enumerate(pages)
     ]
 
-    with ThreadPoolExecutor(max_workers=config.get("num_workers", 4)) as executor:
+    executor_cls = (
+        ProcessPoolExecutor if config.get("use_process_pool") else ThreadPoolExecutor
+    )
+    with executor_cls(max_workers=config.get("num_workers", 4)) as executor:
         results = list(executor.map(process_single_page, tasks))
 
-    for (res, roi_hash) in results:
-        i, page, comp, matched = res["page"], res["page_image"], res["vendor"], res["matched"]
+    for res, roi_hash in results:
+        i, page, comp, matched = (
+            res["page"],
+            res["page_image"],
+            res["vendor"],
+            res["matched"],
+        )
         pages_by_vendor[comp].append(page)
-        log_entries.append({
-            "Filename": base_name,
-            "Page": i + 1,
-            "Vendor": comp,
-            "Ticket Number": res["ticket"],
-            "Matched Keyword": res["keyword"],
-            "Method": res["method"],
-            "Rotated": res["rotated"],
-            "Grayscale": res["grayscale"]
-        })
-        ocr_text_log.append({
-            "Filename": base_name,
-            "Page": i + 1,
-            "Vendor": comp,
-            "OCR Text": res["ocr_text"]
-        })
+        log_entries.append(
+            {
+                "Filename": base_name,
+                "Page": i + 1,
+                "Vendor": comp,
+                "Ticket Number": res["ticket"],
+                "Matched Keyword": res["keyword"],
+                "Method": res["method"],
+                "Rotated": res["rotated"],
+                "Grayscale": res["grayscale"],
+            }
+        )
+        ocr_text_log.append(
+            {
+                "Filename": base_name,
+                "Page": i + 1,
+                "Vendor": comp,
+                "OCR Text": res["ocr_text"],
+            }
+        )
         match_stats[comp] += 1
         if not matched:
             unmatched_pages.append(page)
 
     from datetime import datetime
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     ocr_log_path = Path(filepath).parent / f"ocr_text_log_{ts}.csv"
 
@@ -261,15 +306,21 @@ def process_pages(pages: list[Image.Image], filepath: str, config: dict, suffix:
     except Exception as e:
         logging.warning(f"⚠️ Failed to save OCR text log: {e}")
 
-    output_paths = export_grouped_output(pages_by_vendor, config["output_format"], file_metadata, filepath, config)
+    output_paths = export_grouped_output(
+        pages_by_vendor, config["output_format"], file_metadata, filepath, config
+    )
 
     if config["output_format"].lower() == "pdf":
-        combined_name = format_output_filename_camel(
-            vendor="",
-            page_count=len(pages),
-            meta=file_metadata,
-            output_format="pdf"
-        ).replace("__", "_").replace("._", ".")
+        combined_name = (
+            format_output_filename_camel(
+                vendor="",
+                page_count=len(pages),
+                meta=file_metadata,
+                output_format="pdf",
+            )
+            .replace("__", "_")
+            .replace("._", ".")
+        )
         combined_path = get_sequenced_file_path(Path(filepath).parent, combined_name)
 
         compressed_pages = []
@@ -281,7 +332,10 @@ def process_pages(pages: list[Image.Image], filepath: str, config: dict, suffix:
                 try:
                     rgb = p.convert("RGB")
                     if pdf_scale < 1.0:
-                        rgb = rgb.resize((int(rgb.width * pdf_scale), int(rgb.height * pdf_scale)), Image.LANCZOS)
+                        rgb = rgb.resize(
+                            (int(rgb.width * pdf_scale), int(rgb.height * pdf_scale)),
+                            Image.LANCZOS,
+                        )
                     compressed_pages.append(rgb)
                 except Exception as e:
                     logging.error(f"Failed to prepare image for PDF: {e}")
@@ -293,7 +347,7 @@ def process_pages(pages: list[Image.Image], filepath: str, config: dict, suffix:
                     save_all=True,
                     append_images=compressed_pages[1:],
                     format="PDF",
-                    resolution=pdf_resolution
+                    resolution=pdf_resolution,
                 )
                 logging.info(f"📎 Compressed combined PDF saved: {combined_path}")
             except Exception as e:
@@ -318,7 +372,7 @@ def process_pages(pages: list[Image.Image], filepath: str, config: dict, suffix:
             "Matched Keyword": row["Matched Keyword"],
             "Method": row["Method"],
             "Rotated": row["Rotated"],
-            "Grayscale": row["Grayscale"]
+            "Grayscale": row["Grayscale"],
         }
         row.clear()
         row.update(reordered)
@@ -345,7 +399,9 @@ def process_pages(pages: list[Image.Image], filepath: str, config: dict, suffix:
         logging.warning(f"🔒 Log file locked: {log_file}, saving backup copy...")
         seq = 1
         while True:
-            fallback_log_file = log_file.with_name(log_file.stem + f"_{seq}" + log_file.suffix)
+            fallback_log_file = log_file.with_name(
+                log_file.stem + f"_{seq}" + log_file.suffix
+            )
             if not fallback_log_file.exists():
                 try:
                     combined.to_excel(fallback_log_file, index=False)
@@ -358,7 +414,9 @@ def process_pages(pages: list[Image.Image], filepath: str, config: dict, suffix:
     except Exception as e:
         logging.error(f"❌ Failed to write Excel log: {e}")
 
-    logging.info(f"✅ Processed {len(pages)} pages. Vendors matched: {dict(match_stats)}")
+    logging.info(
+        f"✅ Processed {len(pages)} pages. Vendors matched: {dict(match_stats)}"
+    )
     if unmatched_pages:
         logging.warning(f"⚠️ {len(unmatched_pages)} pages unmatched.")
 
