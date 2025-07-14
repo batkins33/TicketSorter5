@@ -119,6 +119,7 @@ def _run_single(filepath, config):
 
     pages = extract_images_from_file(filepath, config["poppler_path"])
     logging.info(f"Extracted {len(pages)} pages from {filepath}")
+    logging.info("Finished extracting images")
 
     ocr_logs = []
 
@@ -133,6 +134,8 @@ def _run_single(filepath, config):
             logging.warning(f"⚠️ OCR failed on page {i + 1}: {e}")
             ocr_logs.append((path.name, i + 1, engine, "[OCR Failed]"))
 
+    logging.info("Finished running OCR")
+
     if config.get("two_page_scan", False):
         fronts = pages[::2]
         backs = pages[1::2]
@@ -140,6 +143,7 @@ def _run_single(filepath, config):
         process_pages(backs, filepath, config, "_back")
     else:
         process_pages(pages, filepath, config)
+    logging.info("Finished sorting tickets")
 
     if config.get("rename_original", False):
         archive_original(filepath)
