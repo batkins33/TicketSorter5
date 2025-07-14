@@ -137,6 +137,7 @@ def _run_single(filepath, config):
     logging.info(
         f"Extracted {len(pages)} pages from {filepath} in {time.perf_counter() - extract_start:.2f}s"
     )
+    logging.info("Finished extracting images")
 
     ocr_logs = []
 
@@ -156,21 +157,20 @@ def _run_single(filepath, config):
                 f"⏱️ Page {i + 1} OCR time: {time.perf_counter() - page_start:.2f}s"
             )
 
+    logging.info("Finished running OCR")
+
+    proc_start = time.perf_counter()
     if config.get("two_page_scan", False):
         fronts = pages[::2]
         backs = pages[1::2]
-        proc_start = time.perf_counter()
         process_pages(fronts, filepath, config, "")
         process_pages(backs, filepath, config, "_back")
-        logging.info(
-            f"⏱️ Page grouping completed in {time.perf_counter() - proc_start:.2f}s"
-        )
     else:
-        proc_start = time.perf_counter()
         process_pages(pages, filepath, config)
-        logging.info(
-            f"⏱️ Page grouping completed in {time.perf_counter() - proc_start:.2f}s"
-        )
+    logging.info(
+        f"⏱️ Page grouping completed in {time.perf_counter() - proc_start:.2f}s"
+    )
+    logging.info("Finished sorting tickets")
 
     if config.get("rename_original", False):
         archive_original(filepath)
@@ -178,6 +178,7 @@ def _run_single(filepath, config):
     logging.info(f"✅ Output written to: {out_dir}")
     logging.info(f"🕒 File processed in {time.perf_counter() - func_start:.2f}s")
     return ocr_logs
+
 
 
 def run_all_pdfs_in_dir(root_dir, config):
