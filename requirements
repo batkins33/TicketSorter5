@@ -1,0 +1,8 @@
+easyocr
+numpy
+Pillow
+pandas
+opencv-python
+rapidfuzz
+PyMuPDF
+tqdm
