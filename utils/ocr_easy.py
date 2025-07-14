@@ -1,4 +1,11 @@
 import logging
+from PIL import Image
+
+# Pillow>=10 removed the Image.ANTIALIAS constant which EasyOCR still
+# references internally. Create a backwards-compatible alias so the
+# library works regardless of the installed Pillow version.
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
 
 try:
     import easyocr

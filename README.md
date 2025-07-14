@@ -12,8 +12,14 @@ source .venv/bin/activate
 pip install -r requirements
 ```
 
-The dependencies specify `Pillow<10` because EasyOCR currently relies on the
-deprecated `Image.ANTIALIAS` constant removed in Pillow 10.
+The project pins `Pillow<10` by default because EasyOCR originally relied on
+the removed `Image.ANTIALIAS` constant. A compatibility alias is included in
+`utils/ocr_easy.py` so the sorter also works with newer Pillow versions. If you
+encounter an `Image.ANTIALIAS` error, reinstall the dependencies with:
+
+```bash
+pip install -r requirements --force-reinstall
+```
 
 Ensure the Tesseract OCR engine and Poppler utilities are installed on your system and available in your PATH. The `configs.yaml` file has a `poppler_path` setting that should be adjusted if Poppler is not on your PATH.
 
