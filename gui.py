@@ -59,18 +59,21 @@ def threaded_gui_run():
 
     run_btn.config(state="disabled")
     status_label.config(text="🟢 Processing...")
-    progress["value"] = 25
+    progress["value"] = 0
     progress.update_idletasks()
 
     def threaded_run():
         try:
             from processor.run import run_input, run_comparison_mode
+            def gui_progress(idx, total):
+                percent = int(idx / total * 100)
+                progress["value"] = percent
+                progress.update_idletasks()
             if compare_mode.get():
                 run_comparison_mode(selected_path.get(), config)
             else:
-                run_input(selected_path.get(), config)
+                run_input(selected_path.get(), config, progress_callback=gui_progress)
             status_label.config(text="✅ Done!")
-            progress["value"] = 100
         except Exception as e:
             messagebox.showerror("Error", str(e))
             status_label.config(text="❌ Error")

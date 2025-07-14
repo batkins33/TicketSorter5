@@ -19,7 +19,7 @@ from utils.ocr_wrapper import read_text
 os.environ["FLAGS_use_mkldnn"] = "0"
 
 
-def run_input(filepath, config):
+def run_input(filepath, config, progress_callback=None):
     path = Path(filepath)
     batch_start = time.perf_counter()
 
@@ -34,6 +34,8 @@ def run_input(filepath, config):
     ocr_text_log = []
     total = len(paths)
     logging.info(f"🗂️ Batch processing {total} file(s)...")
+    if progress_callback:
+        progress_callback(0, total)
 
     for idx, file in enumerate(paths, 1):
         file_start = time.perf_counter()
@@ -51,9 +53,12 @@ def run_input(filepath, config):
             logging.error(f"❌ Failed: {file} → {e}")
             results.append((file.name, "failed"))
         finally:
+ finally:
             logging.info(
                 f"⏱️ {file.name} processed in {time.perf_counter() - file_start:.2f}s"
             )
+            if progress_callback:
+                progress_callback(idx, total)
 
     if total > 1:
         ok = sum(1 for _, r in results if r == "ok")
