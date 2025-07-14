@@ -6,3 +6,10 @@ opencv-python
 rapidfuzz
 PyMuPDF
 tqdm
+PyPDF2
+pdf2image
+openpyxl
+reportlab
+schema
+pytesseract
+matplotlib
