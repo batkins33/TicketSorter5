@@ -65,6 +65,9 @@ Settings are stored in `configs.yaml`. Important options include:
 - `template_dir`: directory containing template images used for matching
 - `ocr_engine`: OCR backend to use (default `easyocr`)
 - `use_template_fallback`: enable template matching if OCR fails
+- `use_process_pool`: run page processing in a `ProcessPoolExecutor` instead of
+  a thread pool
+- `num_workers`: number of parallel workers for OCR (defaults to 4)
 
 ### Performance Logging
 
