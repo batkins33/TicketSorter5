@@ -12,6 +12,14 @@ source .venv/bin/activate
 pip install -r requirements
 ```
 
+If you prefer Conda, an equivalent environment file is provided in the
+`docs/` directory:
+
+```bash
+conda env create -f docs/environment.yml
+conda activate ticket_sorter
+```
+
 The project pins `Pillow<10` by default because EasyOCR originally relied on
 the removed `Image.ANTIALIAS` constant. A compatibility alias is included in
 `utils/ocr_easy.py` so the sorter also works with newer Pillow versions. If you
@@ -62,4 +70,6 @@ pytest
 ```
 
 The repository currently contains unit tests for filename parsing and configuration loading. Additional tests are welcome.
+
+Additional documentation is available in the [docs](docs/README.md) directory.
 
