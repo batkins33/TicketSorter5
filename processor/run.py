@@ -1,6 +1,7 @@
 # PATCHED: run.py
 import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox
@@ -20,6 +21,7 @@ os.environ["FLAGS_use_mkldnn"] = "0"
 
 def run_input(filepath, config, progress_callback=None):
     path = Path(filepath)
+    batch_start = time.perf_counter()
 
     if ";" in str(filepath):
         paths = [Path(p) for p in str(filepath).split(";") if p.strip()]
@@ -36,6 +38,7 @@ def run_input(filepath, config, progress_callback=None):
         progress_callback(0, total)
 
     for idx, file in enumerate(paths, 1):
+        file_start = time.perf_counter()
         out_dir, _, _ = get_dynamic_paths(file)
         if out_dir.exists():
             logging.info(f"⏭️ {idx}/{total} Skipping already processed: {file.name}")
@@ -50,6 +53,10 @@ def run_input(filepath, config, progress_callback=None):
             logging.error(f"❌ Failed: {file} → {e}")
             results.append((file.name, "failed"))
         finally:
+ finally:
+            logging.info(
+                f"⏱️ {file.name} processed in {time.perf_counter() - file_start:.2f}s"
+            )
             if progress_callback:
                 progress_callback(idx, total)
 
@@ -68,16 +75,21 @@ def run_input(filepath, config, progress_callback=None):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         csv_path = Path.cwd() / f"batch_summary_{ts}.csv"
         try:
-            pd.DataFrame(results, columns=["File", "Status"]).to_csv(csv_path, index=False)
+            pd.DataFrame(results, columns=["File", "Status"]).to_csv(
+                csv_path, index=False
+            )
             logging.info(f"📄 Saved summary: {csv_path}")
         except Exception as e:
             logging.warning(f"⚠️ Failed to save summary CSV: {e}")
 
         try:
             truncated_logs = [
-                (fname, page, vendor, text[:2000]) for fname, page, vendor, text in ocr_text_log
+                (fname, page, vendor, text[:2000])
+                for fname, page, vendor, text in ocr_text_log
             ]
-            ocr_df = pd.DataFrame(truncated_logs, columns=["Filename", "Page", "Vendor", "OCR Text"])
+            ocr_df = pd.DataFrame(
+                truncated_logs, columns=["Filename", "Page", "Vendor", "OCR Text"]
+            )
             ocr_path = Path.cwd() / f"ocr_text_log_{ts}.csv"
             ocr_df.to_csv(ocr_path, index=False)
             logging.info(f"🧾 OCR log saved to: {ocr_path}")
@@ -109,21 +121,28 @@ def run_input(filepath, config, progress_callback=None):
         except Exception as e:
             logging.warning(f"⚠️ Failed to save overlay PDF: {e}")
 
+    logging.info(f"🕒 Total batch time: {time.perf_counter() - batch_start:.2f}s")
+
 
 def _run_single(filepath, config):
     path = Path(filepath)
     logging.info(f"🚀 Processing: {filepath}")
+    func_start = time.perf_counter()
     base_name = path.stem
     combined_name = base_name + ".pdf"
     out_dir, log_dir, combined_dir = get_dynamic_paths(filepath, combined_name)
 
+    extract_start = time.perf_counter()
     pages = extract_images_from_file(filepath, config["poppler_path"])
-    logging.info(f"Extracted {len(pages)} pages from {filepath}")
+    logging.info(
+        f"Extracted {len(pages)} pages from {filepath} in {time.perf_counter() - extract_start:.2f}s"
+    )
     logging.info("Finished extracting images")
 
     ocr_logs = []
 
     for i, page in enumerate(pages):
+        page_start = time.perf_counter()
         try:
             engine = config.get("ocr_engine", "tesseract")
             text_result = read_text(image=page)
@@ -133,9 +152,14 @@ def _run_single(filepath, config):
         except Exception as e:
             logging.warning(f"⚠️ OCR failed on page {i + 1}: {e}")
             ocr_logs.append((path.name, i + 1, engine, "[OCR Failed]"))
+        finally:
+            logging.info(
+                f"⏱️ Page {i + 1} OCR time: {time.perf_counter() - page_start:.2f}s"
+            )
 
     logging.info("Finished running OCR")
 
+    proc_start = time.perf_counter()
     if config.get("two_page_scan", False):
         fronts = pages[::2]
         backs = pages[1::2]
@@ -143,13 +167,18 @@ def _run_single(filepath, config):
         process_pages(backs, filepath, config, "_back")
     else:
         process_pages(pages, filepath, config)
+    logging.info(
+        f"⏱️ Page grouping completed in {time.perf_counter() - proc_start:.2f}s"
+    )
     logging.info("Finished sorting tickets")
 
     if config.get("rename_original", False):
         archive_original(filepath)
 
     logging.info(f"✅ Output written to: {out_dir}")
+    logging.info(f"🕒 File processed in {time.perf_counter() - func_start:.2f}s")
     return ocr_logs
+
 
 
 def run_all_pdfs_in_dir(root_dir, config):
@@ -164,6 +193,7 @@ def run_all_pdfs_in_dir(root_dir, config):
 
 def run_processor_in_thread(filepath, config):
     import threading
+
     thread = threading.Thread(target=run_input, args=(filepath, config))
     thread.start()
 
@@ -182,21 +212,25 @@ def run_comparison_mode(filepath, config):
         for engine in ("tesseract", "paddle", "easyocr"):
             try:
                 res = read_text(image=page)
-                page_results.append({
-                    "Filename": path.name,
-                    "Page": i + 1,
-                    "Engine": engine,
-                    "Confidence": res.get("confidence"),
-                    "Text": res.get("text", "").replace("\n", " ")[:1000]
-                })
+                page_results.append(
+                    {
+                        "Filename": path.name,
+                        "Page": i + 1,
+                        "Engine": engine,
+                        "Confidence": res.get("confidence"),
+                        "Text": res.get("text", "").replace("\n", " ")[:1000],
+                    }
+                )
             except Exception as e:
-                page_results.append({
-                    "Filename": path.name,
-                    "Page": i + 1,
-                    "Engine": engine,
-                    "Confidence": None,
-                    "Text": f"[ERROR: {e}]"
-                })
+                page_results.append(
+                    {
+                        "Filename": path.name,
+                        "Page": i + 1,
+                        "Engine": engine,
+                        "Confidence": None,
+                        "Text": f"[ERROR: {e}]",
+                    }
+                )
         all_results.extend(page_results)
         plot_engine_scores(all_results)
 
