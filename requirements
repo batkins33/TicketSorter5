@@ -1,6 +1,6 @@
 easyocr
 numpy
-Pillow
+Pillow<10
 pandas
 opencv-python
 rapidfuzz

@@ -12,6 +12,9 @@ source .venv/bin/activate
 pip install -r requirements
 ```
 
+The dependencies specify `Pillow<10` because EasyOCR currently relies on the
+deprecated `Image.ANTIALIAS` constant removed in Pillow 10.
+
 Ensure the Tesseract OCR engine and Poppler utilities are installed on your system and available in your PATH. The `configs.yaml` file has a `poppler_path` setting that should be adjusted if Poppler is not on your PATH.
 
 ## Usage
